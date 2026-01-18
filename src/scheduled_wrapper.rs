@@ -27,8 +27,7 @@ mod tests {
     struct MockEvent;
     
     impl Event<()> for MockEvent {
-        fn execute(&self, _world: &mut (), _current_tick: u64) -> Vec<(Box<dyn Event<()>>, u64)> {
-            vec![]
+        fn execute(&self, _world: &mut (), _current_tick: u64, _scheduler: &mut crate::engine::Scheduler<()>) {
         }
     }
 

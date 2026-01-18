@@ -2,12 +2,34 @@ use crate::event::Event;
 use crate::scheduled_wrapper::ScheduledEvent;
 use priority_queue::PriorityQueue;
 use std::cmp::Reverse;
+use std::collections::HashSet;
+
+pub struct Scheduler<'a, W> {
+    current_tick: u64,
+    queue: &'a mut PriorityQueue<ScheduledEvent<W>, Reverse<(u64, u64)>>,
+    id_counter: &'a mut u64,
+}
+
+impl<'a, W> Scheduler<'a, W> {
+    pub fn schedule(&mut self, event: Box<dyn Event<W>>, delay: u64) -> u64 {
+        *self.id_counter += 1;
+        let id = *self.id_counter;
+
+        let item = ScheduledEvent { id, event };
+        let priority = Reverse((self.current_tick + delay, id));
+
+        self.queue.push(item, priority);
+        id
+    }
+}
 
 pub struct Engine<W> {
     current_tick: u64,
     // The Priority is Reverse((Time, ID)).
     queue: PriorityQueue<ScheduledEvent<W>, Reverse<(u64, u64)>>,
     id_counter: u64,
+
+    cancelled_events: HashSet<u64>,
 }
 
 impl<W> Engine<W> {
@@ -16,22 +38,26 @@ impl<W> Engine<W> {
             current_tick: 0,
             queue: PriorityQueue::new(),
             id_counter: 0,
+            cancelled_events: HashSet::new(),
         }
     }
 
-    pub fn schedule(&mut self, event: Box<dyn Event<W>>, delay: u64) {
+    pub fn schedule(&mut self, event: Box<dyn Event<W>>, delay: u64) -> u64 {
         self.id_counter += 1;
-        let execute_at = self.current_tick + delay;
+        let id: u64 = self.id_counter;
 
-        let wrapper = ScheduledEvent {
-            id: self.id_counter,
-            event,
-        };
+        let item: ScheduledEvent<W> = ScheduledEvent { id, event };
+        let priority = Reverse((self.current_tick + delay, id));
 
         // We push the Item and the Priority separately.
         // Priority = (Time, ID). We reverse it so smaller numbers pop first.
-        self.queue
-            .push(wrapper, Reverse((execute_at, self.id_counter)));
+        self.queue.push(item, priority);
+
+        id
+    }
+
+    pub fn cancel(&mut self, event_id: u64) {
+        self.cancelled_events.insert(event_id);
     }
 
     pub fn step(&mut self, world: &mut W) {
@@ -41,21 +67,26 @@ impl<W> Engine<W> {
             match self.queue.peek() {
                 Some((_, Reverse((time, _)))) => {
                     if *time > self.current_tick {
-                        return; // Next event is in the future
+                        return; // next event is in the future
                     }
                 }
-                None => return, // Queue is empty
+                None => return, // queue is empty
             }
 
-            // pop() returns Option<(Item, Priority)>
             let (item, _) = self.queue.pop().unwrap();
 
-            let new_events = item.event.execute(world, self.current_tick);
-
-            // Schedule new events
-            for (evt, delay) in new_events {
-                self.schedule(evt, delay);
+            if self.cancelled_events.contains(&item.id) {
+                self.cancelled_events.remove(&item.id);
+                continue; 
             }
+
+            let mut scheduler = Scheduler {
+                current_tick: self.current_tick,
+                queue: &mut self.queue,
+                id_counter: &mut self.id_counter,
+            };
+
+            item.event.execute(world, self.current_tick, &mut scheduler);
         }
     }
 
@@ -84,17 +115,18 @@ mod tests {
             &self,
             world: &mut TestWorld,
             tick: u64,
-        ) -> Vec<(Box<dyn Event<TestWorld>>, u64)> {
+            scheduler: &mut Scheduler<TestWorld>,
+        ) {
             world.gold += self.amount;
             world
                 .logs
                 .push(format!("Tick {}: Mined {}", tick, self.amount));
 
-            // Recur every 5 ticks
+            // recur every 5 ticks
             let next_miner = Box::new(Miner {
                 amount: self.amount,
             });
-            vec![(next_miner, 5)]
+            scheduler.schedule(next_miner, 5);
         }
     }
 
@@ -107,11 +139,11 @@ mod tests {
             &self,
             world: &mut TestWorld,
             tick: u64,
-        ) -> Vec<(Box<dyn Event<TestWorld>>, u64)> {
+            _scheduler: &mut Scheduler<TestWorld>,
+        ) {
             world
                 .logs
                 .push(format!("Tick {}: BOOM {}", tick, self.power));
-            vec![]
         }
     }
 

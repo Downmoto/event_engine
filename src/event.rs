@@ -1,10 +1,13 @@
+use crate::engine::Scheduler;
+
 pub trait Event<W> {
-    fn execute(&self, world: &mut W, current_tick: u64) -> Vec<(Box<dyn Event<W>>, u64)>;
+    fn execute(&self, world: &mut W, current_tick: u64, scheduler: &mut Scheduler<W>);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::Engine;
 
     struct TestWorld {
         counter: u32,
@@ -16,9 +19,8 @@ mod tests {
     }
 
     impl Event<TestWorld> for IncrementEvent {
-        fn execute(&self, world: &mut TestWorld, _current_tick: u64) -> Vec<(Box<dyn Event<TestWorld>>, u64)> {
+        fn execute(&self, world: &mut TestWorld, _current_tick: u64, _scheduler: &mut Scheduler<TestWorld>) {
             world.counter += self.amount;
-            vec![]
         }
     }
 
@@ -28,69 +30,69 @@ mod tests {
     }
 
     impl Event<TestWorld> for SchedulingEvent {
-        fn execute(&self, _world: &mut TestWorld, current_tick: u64) -> Vec<(Box<dyn Event<TestWorld>>, u64)> {
-            (0..self.schedule_count)
-                .map(|i| {
-                    let event = Box::new(IncrementEvent { amount: 1 }) as Box<dyn Event<TestWorld>>;
-                    (event, current_tick + i as u64 + 1)
-                })
-                .collect()
+        fn execute(&self, _world: &mut TestWorld, _current_tick: u64, scheduler: &mut Scheduler<TestWorld>) {
+            for i in 0..self.schedule_count {
+                let event = Box::new(IncrementEvent { amount: 1 });
+                scheduler.schedule(event, i as u64 + 1);
+            }
         }
     }
 
     #[test]
     fn test_event_executes_and_modifies_world() {
         let mut world = TestWorld { counter: 0 };
-        let event = IncrementEvent { amount: 5 };
+        let mut engine = Engine::new();
 
-        let scheduled_events = event.execute(&mut world, 0);
+        engine.schedule(Box::new(IncrementEvent { amount: 5 }), 1);
+        engine.step(&mut world);
 
         assert_eq!(world.counter, 5);
-        assert_eq!(scheduled_events.len(), 0);
     }
 
     #[test]
-    fn test_event_returns_no_scheduled_events() {
+    fn test_event_schedules_child_events() {
         let mut world = TestWorld { counter: 0 };
-        let event = IncrementEvent { amount: 1 };
+        let mut engine = Engine::new();
 
-        let scheduled_events = event.execute(&mut world, 10);
+        engine.schedule(Box::new(SchedulingEvent { schedule_count: 3 }), 1);
+        
+        for _ in 0..5 {
+            engine.step(&mut world);
+        }
 
-        assert!(scheduled_events.is_empty());
+        assert_eq!(world.counter, 3);
     }
 
     #[test]
-    fn test_event_returns_scheduled_events() {
+    fn test_scheduling_uses_correct_timing() {
         let mut world = TestWorld { counter: 0 };
-        let event = SchedulingEvent { schedule_count: 3 };
+        let mut engine = Engine::new();
 
-        let scheduled_events = event.execute(&mut world, 10);
+        // schedule at tick 5 - it schedules a child event with delay of 1
+        engine.schedule(Box::new(SchedulingEvent { schedule_count: 1 }), 5);
+        
+        for _ in 0..5 {
+            engine.step(&mut world);
+        }
+        assert_eq!(world.counter, 0); // child not executed yet
 
-        assert_eq!(scheduled_events.len(), 3);
-        assert_eq!(scheduled_events[0].1, 11);
-        assert_eq!(scheduled_events[1].1, 12);
-        assert_eq!(scheduled_events[2].1, 13);
-    }
-
-    #[test]
-    fn test_event_current_tick_parameter() {
-        let mut world = TestWorld { counter: 0 };
-        let event = SchedulingEvent { schedule_count: 1 };
-
-        let scheduled_events_tick_5 = event.execute(&mut world, 5);
-        let scheduled_events_tick_100 = event.execute(&mut world, 100);
-
-        assert_eq!(scheduled_events_tick_5[0].1, 6);
-        assert_eq!(scheduled_events_tick_100[0].1, 101);
+        // step to tick 6 - child executes
+        engine.step(&mut world);
+        assert_eq!(world.counter, 1);
     }
 
     #[test]
     fn test_event_with_zero_schedules() {
         let mut world = TestWorld { counter: 0 };
-        let event = SchedulingEvent { schedule_count: 0 };
+        let mut engine = Engine::new();
 
-        let scheduled_events = event.execute(&mut world, 10);
+        engine.schedule(Box::new(SchedulingEvent { schedule_count: 0 }), 1);
+        
+        // step multiple times
+        for _ in 0..5 {
+            engine.step(&mut world);
+        }
 
-        assert_eq!(scheduled_events.len(), 0);
+        assert_eq!(world.counter, 0);
     }
 }

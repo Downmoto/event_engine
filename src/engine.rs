@@ -43,16 +43,13 @@ impl<W> Engine<W> {
     }
 
     pub fn schedule(&mut self, event: Box<dyn Event<W>>, delay: u64) -> u64 {
-        self.id_counter += 1;
-        let id: u64 = self.id_counter;
+        let mut scheduler = Scheduler {
+                current_tick: self.current_tick,
+                queue: &mut self.queue,
+                id_counter: &mut self.id_counter,
+            };
 
-        let item: ScheduledEvent<W> = ScheduledEvent { id, event };
-        let priority = Reverse((self.current_tick + delay, id));
-
-        // We push the Item and the Priority separately.
-        // Priority = (Time, ID). We reverse it so smaller numbers pop first.
-        self.queue.push(item, priority);
-
+        let id: u64 = scheduler.schedule(event, delay);
         id
     }
 

@@ -1,27 +1,11 @@
-use crate::event::Event;
 use crate::scheduled_wrapper::ScheduledEvent;
+use crate::Event;
+use crate::Scheduler;
 use priority_queue::PriorityQueue;
 use std::cmp::Reverse;
 use std::collections::HashSet;
 
-pub struct Scheduler<'a, W> {
-    current_tick: u64,
-    queue: &'a mut PriorityQueue<ScheduledEvent<W>, Reverse<(u64, u64)>>,
-    id_counter: &'a mut u64,
-}
 
-impl<'a, W> Scheduler<'a, W> {
-    pub fn schedule(&mut self, event: Box<dyn Event<W>>, delay: u64) -> u64 {
-        *self.id_counter += 1;
-        let id = *self.id_counter;
-
-        let item = ScheduledEvent { id, event };
-        let priority = Reverse((self.current_tick + delay, id));
-
-        self.queue.push(item, priority);
-        id
-    }
-}
 
 pub struct Engine<W> {
     current_tick: u64,

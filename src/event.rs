@@ -1,4 +1,4 @@
-use crate::engine::Scheduler;
+use crate::Scheduler;
 
 pub trait Event<W> {
     fn execute(&self, world: &mut W, current_tick: u64, scheduler: &mut Scheduler<W>);

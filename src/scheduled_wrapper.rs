@@ -1,4 +1,4 @@
-use crate::event::Event;
+use crate::Event;
 use std::hash::{Hash, Hasher};
 pub struct ScheduledEvent<W> {
     pub id: u64,
@@ -21,13 +21,15 @@ impl<W> Eq for ScheduledEvent<W> {}
 
 #[cfg(test)]
 mod tests {
+    use crate::Scheduler;
+
     use super::*;
 
     // mock event for testing
     struct MockEvent;
     
     impl Event<()> for MockEvent {
-        fn execute(&self, _world: &mut (), _current_tick: u64, _scheduler: &mut crate::engine::Scheduler<()>) {
+        fn execute(&self, _world: &mut (), _current_tick: u64, _scheduler: &mut Scheduler<()>) {
         }
     }
 

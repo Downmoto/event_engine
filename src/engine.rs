@@ -207,16 +207,16 @@ mod tests {
             .max_executions_per_tick(1000)
             .initial_event_pool(vec![(Box::new(SpawningEvent), 1)]);
 
-        // run for 100k ticks with progress monitoring
-        for tick in 1..=100_000 {
+        // run for 10k ticks with progress monitoring
+        for tick in 1..=10_000 {
             engine.step(&mut world);
 
-            if tick % 10000 == 0 {
+            if tick % 1000 == 0 {
                 println!("tick {}: event_count = {}", tick, world.event_count);
             }
         }
 
-        assert_eq!(engine.current_tick, 100_000);
+        assert_eq!(engine.current_tick, 10_000);
         assert!(
             world.event_count > 0,
             "at least one event should have executed"

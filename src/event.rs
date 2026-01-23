@@ -41,7 +41,7 @@ mod tests {
     #[test]
     fn test_event_executes_and_modifies_world() {
         let mut world = TestWorld { counter: 0 };
-        let mut engine = Engine::new();
+        let mut engine = Engine::build();
 
         engine.schedule(Box::new(IncrementEvent { amount: 5 }), 1);
         engine.step(&mut world);
@@ -52,7 +52,7 @@ mod tests {
     #[test]
     fn test_event_schedules_child_events() {
         let mut world = TestWorld { counter: 0 };
-        let mut engine = Engine::new();
+        let mut engine = Engine::build();
 
         engine.schedule(Box::new(SchedulingEvent { schedule_count: 3 }), 1);
         
@@ -66,7 +66,7 @@ mod tests {
     #[test]
     fn test_scheduling_uses_correct_timing() {
         let mut world = TestWorld { counter: 0 };
-        let mut engine = Engine::new();
+        let mut engine = Engine::build();
 
         // schedule at tick 5 - it schedules a child event with delay of 1
         engine.schedule(Box::new(SchedulingEvent { schedule_count: 1 }), 5);
@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn test_event_with_zero_schedules() {
         let mut world = TestWorld { counter: 0 };
-        let mut engine = Engine::new();
+        let mut engine = Engine::build();
 
         engine.schedule(Box::new(SchedulingEvent { schedule_count: 0 }), 1);
         

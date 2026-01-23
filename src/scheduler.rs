@@ -10,7 +10,7 @@ pub struct Scheduler<'a, W> {
 }
 
 impl<'a, W> Scheduler<'a, W> {
-    pub fn schedule(&mut self, event: Box<dyn Event<W>>, delay: u64) -> u64 {
+    pub fn schedule(&mut self, event: Box<dyn Event<W>>, delay: u64) {
         *self.id_counter += 1;
         let id = *self.id_counter;
 
@@ -18,6 +18,5 @@ impl<'a, W> Scheduler<'a, W> {
         let priority = Reverse((self.current_tick + delay, id));
 
         self.queue.push(item, priority);
-        id
     }
 }
